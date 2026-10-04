@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Календарь</title>
+<style>
+:root{--txt:#f4f6ff;--dim:rgba(235,240,255,.58);--line:rgba(255,255,255,.14);
+--glass:linear-gradient(135deg,rgba(255,255,255,.15),rgba(255,255,255,.04));}
+*{box-sizing:border-box;margin:0}
+html,body{min-height:100%}
+body{background:#05060d;color:var(--txt);font:15px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,sans-serif;
+padding:max(20px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom));-webkit-font-smoothing:antialiased}
+.blob{position:fixed;border-radius:50%;filter:blur(70px);opacity:.75;z-index:-1;animation:drift 28s ease-in-out infinite alternate}
+.b1{width:46vmax;height:46vmax;left:-12vmax;top:-10vmax;background:radial-gradient(#3b5bff,transparent 65%)}
+.b2{width:40vmax;height:40vmax;right:-10vmax;top:18vh;background:radial-gradient(#b23bff,transparent 65%);animation-delay:-9s}
+.b3{width:36vmax;height:36vmax;left:20vw;bottom:-14vmax;background:radial-gradient(#00c2b8,transparent 65%);animation-delay:-17s}
+@keyframes drift{to{transform:translate(8vmax,6vmax) scale(1.15)}}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);
+border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -1px 0 rgba(255,255,255,.05),0 24px 60px rgba(0,0,0,.45)}
+.app{max-width:1060px;margin:0 auto;display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.cal{border-radius:30px;padding:20px}
+.head{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.head h1{flex:1;font-size:26px;font-weight:650;letter-spacing:-.02em;text-transform:capitalize}
+button{font:inherit;color:var(--txt);cursor:pointer;border:1px solid var(--line);border-radius:999px;height:38px;min-width:38px;padding:0 14px;
+background:rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.25);transition:background .2s}
+button:hover{background:rgba(255,255,255,.16)}
+:focus-visible{outline:2px solid #9db4ff;outline-offset:2px}
+.wd,.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.wd span{text-align:center;color:var(--dim);font-size:13px;padding-bottom:6px}
+.day{min-height:92px;border-radius:18px;padding:8px;text-align:left;height:auto;display:flex;flex-direction:column;gap:3px;
+background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);box-shadow:none;overflow:hidden}
+.day.out{opacity:.38}
+.day .n{font-weight:600;font-size:14px;width:26px;height:26px;display:grid;place-items:center;border-radius:50%}
+.day.today .n{background:#fff;color:#0a0c18}
+.day.sel{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.chip{font-size:11.5px;line-height:1.25;padding:2px 6px;border-radius:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+background:hsl(var(--h) 80% 60%/.25);border-left:3px solid hsl(var(--h) 85% 65%)}
+.more{font-size:11px;color:var(--dim);padding-left:4px}
+.dots{display:none;gap:3px;flex-wrap:wrap}
+.dots i{width:6px;height:6px;border-radius:50%;background:hsl(var(--h) 85% 65%)}
+.panel{border-radius:30px;padding:22px;position:sticky;top:20px}
+.panel h2{font-size:20px;font-weight:650;letter-spacing:-.01em;text-transform:capitalize}
+.panel .sub{color:var(--dim);margin:2px 0 16px}
+.ev{display:flex;gap:12px;padding:12px 0;border-top:1px solid rgba(255,255,255,.1)}
+.ev:first-of-type{border-top:0}
+.bar{width:4px;border-radius:4px;background:hsl(var(--h) 85% 65%);flex:none}
+.ev b{display:block;font-weight:600}
+.ev span{display:block;color:var(--dim);font-size:13.5px}
+.empty{color:var(--dim);padding:8px 0}
+.err{max-width:520px;margin:20vh auto;border-radius:26px;padding:26px}
+@media(max-width:820px){
+ .app{grid-template-columns:1fr}.panel{position:static}.cal{padding:14px;border-radius:26px}
+ .day{min-height:58px;align-items:center;padding:6px 2px;border-radius:14px}
+ .chip,.more{display:none}.dots{display:flex;justify-content:center}
+ .head h1{font-size:22px}
+}
+@media(prefers-reduced-motion:reduce){.blob{animation:none}}
+</style>
+</head>
+<body>
+<div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+<main class="app" id="app" hidden>
+  <section class="cal glass">
+    <div class="head">
+      <h1 id="title"></h1>
+      <button id="prev" aria-label="Предыдущий месяц">‹</button>
+      <button id="today">Сегодня</button>
+      <button id="next" aria-label="Следующий месяц">›</button>
+    </div>
+    <div class="wd" id="wd"></div>
+    <div class="grid" id="grid"></div>
+  </section>
+  <aside class="panel glass">
+    <h2 id="dtitle"></h2><p class="sub" id="dsub"></p>
+    <div id="list"></div>
+  </aside>
+</main>
+<div class="err glass" id="err" hidden>
+  <h2>Не удалось загрузить календарь</h2>
+  <p class="empty">Файл calendar.ics не найден. Запустите workflow «Sync calendar» во вкладке Actions репозитория и обновите страницу.</p>
+</div>
+
+<script>
+const $=s=>document.getElementById(s);
+const DAY=864e5, WD=['SU','MO','TU','WE','TH','FR','SA'];
+const pad=n=>String(n).padStart(2,'0');
+const dk=ms=>{const d=new Date(ms);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const unesc=s=>s.replace(/\\n/gi,' ').replace(/\\([,;\\])/g,'$1');
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
+const tm=ms=>new Date(ms).toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
+
+/* ---------- ICS ---------- */
+function zoned(n,tz){
+  const loc=()=>new Date(n[0],n[1]-1,n[2],n[3],n[4],n[5]).getTime();
+  try{
+    const f=new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'numeric',second:'numeric'});
+    const off=t=>{const o={};f.formatToParts(t).forEach(x=>o[x.type]=+x.value);return Date.UTC(o.year,o.month-1,o.day,o.hour,o.minute,o.second)-t};
+    const g=Date.UTC(n[0],n[1]-1,n[2],n[3],n[4],n[5]);
+    let r=g-off(g);r=g-off(r);return r;
+  }catch(e){return loc()}
+}
+function pd(v,p={}){
+  const m=v.match(/^(\d{4})(\d\d)(\d\d)(?:T(\d\d)(\d\d)(\d\d)(Z)?)?$/);
+  if(!m)return null;
+  const n=m.slice(1,7).map(x=>x===undefined?0:+x);
+  if(m[4]===undefined)return{ms:new Date(n[0],n[1]-1,n[2]).getTime(),allDay:true};
+  if(m[7])return{ms:Date.UTC(n[0],n[1]-1,n[2],n[3],n[4],n[5])};
+  if(p.TZID)return{ms:zoned(n,p.TZID)};
+  return{ms:new Date(n[0],n[1]-1,n[2],n[3],n[4],n[5]).getTime()};
+}
+function parseICS(t){
+  const lines=t.replace(/\r?\n[ \t]/g,'').split(/\r?\n/),evs=[];let cur=null;
+  for(const l of lines){
+    if(l==='BEGIN:VEVENT'){cur={ex:[]};continue}
+    if(l==='END:VEVENT'){if(cur&&cur.DTSTART)evs.push(cur);cur=null;continue}
+    if(!cur)continue;
+    const i=l.indexOf(':');if(i<0)continue;
+    const [name,...ps]=l.slice(0,i).split(';');
+    const params=Object.fromEntries(ps.map(p=>p.split('=')));
+    const val=l.slice(i+1);
+    if(name==='EXDATE')val.split(',').forEach(v=>cur.ex.push(pd(v,params)));
+    else cur[name]={val,params};
+  }
+  return evs.filter(e=>!(e.STATUS&&e.STATUS.val==='CANCELLED')).map(e=>{
+    const s=pd(e.DTSTART.val,e.DTSTART.params);if(!s)return null;
+    const en=e.DTEND?pd(e.DTEND.val,e.DTEND.params):null;
+    const rid=e['RECURRENCE-ID']?pd(e['RECURRENCE-ID'].val,e['RECURRENCE-ID'].params):null;
+    return{uid:e.UID?e.UID.val:'',title:unesc(e.SUMMARY?e.SUMMARY.val:'Без названия'),loc:unesc(e.LOCATION?e.LOCATION.val:''),
+      s:s.ms,allDay:!!s.allDay,dur:en?en.ms-s.ms:(s.allDay?DAY:0),rr:e.RRULE?e.RRULE.val:null,
+      ex:e.ex.filter(Boolean).map(x=>dk(x.ms)),rid:rid?dk(rid.ms):null};
+  }).filter(Boolean);
+}
+function expand(base,from,to){
+  const out=[],ov=new Set(base.filter(e=>e.rid).map(e=>e.uid+'|'+e.rid));
+  const push=(e,s)=>{if(s<=to&&s+e.dur>=from)out.push({title:e.title,loc:e.loc,s,e:s+e.dur,allDay:e.allDay})};
+  for(const e of base){
+    if(!e.rr){push(e,e.s);continue}
+    const r=Object.fromEntries(e.rr.split(';').map(x=>x.split('=')));
+    const iv=+r.INTERVAL||1,st=new Date(e.s),cnt=r.COUNT?+r.COUNT:Infinity;
+    const u=r.UNTIL?pd(r.UNTIL):null,lim=Math.min(to,u?u.ms+(u.allDay?DAY:0):Infinity);
+    const by=r.BYDAY?r.BYDAY.split(','):null,bmd=r.BYMONTHDAY?r.BYMONTHDAY.split(',').map(Number):null;
+    const d0=new Date(st.getFullYear(),st.getMonth(),st.getDate());
+    const match=d=>{
+      const days=Math.round((d-d0)/DAY);
+      switch(r.FREQ){
+        case'DAILY':return days%iv===0;
+        case'WEEKLY':{if(Math.floor((days+(st.getDay()+6)%7)/7)%iv)return false;
+          return by?by.some(b=>b.slice(-2)===WD[d.getDay()]):d.getDay()===st.getDay()}
+        case'MONTHLY':{if(((d.getFullYear()-st.getFullYear())*12+d.getMonth()-st.getMonth())%iv)return false;
+          if(bmd)return bmd.includes(d.getDate());
+          if(by)return by.some(b=>{const k=parseInt(b);if(b.slice(-2)!==WD[d.getDay()])return false;if(!k)return true;
+            if(k>0)return Math.ceil(d.getDate()/7)===k;
+            const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();return Math.ceil((last-d.getDate()+1)/7)===-k});
+          return d.getDate()===st.getDate()}
+        case'YEARLY':return(d.getFullYear()-st.getFullYear())%iv===0&&d.getMonth()===st.getMonth()&&d.getDate()===st.getDate();
+      }
+      return false;
+    };
+    let n=0;
+    for(let i=0;i<20000;i++){
+      const d=new Date(d0.getFullYear(),d0.getMonth(),d0.getDate()+i);
+      const t=new Date(d.getFullYear(),d.getMonth(),d.getDate(),st.getHours(),st.getMinutes(),st.getSeconds()).getTime();
+      if(t>lim)break;
+      if(!match(d))continue;
+      if(++n>cnt)break;
+      if(e.ex.includes(dk(t))||ov.has(e.uid+'|'+dk(t)))continue;
+      push(e,t);
+    }
+  }
+  return out;
+}
+
+/* ---------- UI ---------- */
+let base=[],view=new Date(),sel=new Date();
+view.setDate(1);
+const dayFmt=new Intl.DateTimeFormat('ru',{weekday:'long'});
+$('wd').innerHTML=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d=>`<span>${d}</span>`).join('');
+
+function render(){
+  const y=view.getFullYear(),m=view.getMonth();
+  $('title').textContent=new Intl.DateTimeFormat('ru',{month:'long',year:'numeric'}).format(view);
+  const first=new Date(y,m,1),shift=(first.getDay()+6)%7;
+  const start=new Date(y,m,1-shift),weeks=Math.ceil((shift+new Date(y,m+1,0).getDate())/7);
+  const end=new Date(start.getFullYear(),start.getMonth(),start.getDate()+weeks*7);
+  const evs=expand(base,start.getTime(),end.getTime()).sort((a,b)=>a.s-b.s);
+  const map={};
+  for(const e of evs){
+    const last=e.e>e.s?e.e-1:e.s;
+    for(let t=new Date(e.s).setHours(0,0,0,0);t<=last;t=new Date(new Date(t).getFullYear(),new Date(t).getMonth(),new Date(t).getDate()+1).getTime())
+      (map[dk(t)]=map[dk(t)]||[]).push(e);
+  }
+  const todayK=dk(Date.now()),selK=dk(sel);
+  let h='';
+  for(let i=0;i<weeks*7;i++){
+    const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),k=dk(d),es=map[k]||[];
+    h+=`<button class="day${d.getMonth()!==m?' out':''}${k===todayK?' today':''}${k===selK?' sel':''}" data-k="${k}" aria-label="${d.toLocaleDateString('ru',{day:'numeric',month:'long'})}, событий: ${es.length}">
+      <span class="n">${d.getDate()}</span>
+      ${es.slice(0,2).map(e=>`<span class="chip" style="--h:${hue(e.title)}">${esc(e.title)}</span>`).join('')}
+      ${es.length>2?`<span class="more">ещё ${es.length-2}</span>`:''}
+      <span class="dots">${es.slice(0,4).map(e=>`<i style="--h:${hue(e.title)}"></i>`).join('')}</span></button>`;
+  }
+  $('grid').innerHTML=h;
+  $('grid').querySelectorAll('.day').forEach(b=>b.onclick=()=>{const [yy,mm,dd]=b.dataset.k.split('-').map(Number);sel=new Date(yy,mm-1,dd);
+    if(sel.getMonth()!==view.getMonth())view=new Date(yy,mm-1,1);render()});
+  panel(map[selK]||[]);
+}
+function panel(es){
+  $('dtitle').textContent=sel.toLocaleDateString('ru',{day:'numeric',month:'long'});
+  $('dsub').textContent=dayFmt.format(sel);
+  const selStart=new Date(sel.getFullYear(),sel.getMonth(),sel.getDate()).getTime();
+  $('list').innerHTML=es.length?es.map(e=>{
+    const time=e.allDay?'Весь день':(e.e>e.s?`${tm(e.s)} – ${tm(e.e)}`:tm(e.s));
+    return`<div class="ev" style="--h:${hue(e.title)}"><i class="bar"></i><div><b>${esc(e.title)}</b><span>${time}</span>${e.loc?`<span>${esc(e.loc)}</span>`:''}</div></div>`;
+  }).join(''):'<p class="empty">В этот день ничего не запланировано.</p>';
+}
+$('prev').onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()-1,1);render()};
+$('next').onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()+1,1);render()};
+$('today').onclick=()=>{sel=new Date();view=new Date(sel.getFullYear(),sel.getMonth(),1);render()};
+
+fetch('calendar.ics?'+Date.now()).then(r=>{if(!r.ok)throw 0;return r.text()}).then(t=>{
+  base=parseICS(t);$('app').hidden=false;render();
+}).catch(()=>{$('err').hidden=false});
+</script>
+</body>
+</html>
