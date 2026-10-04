@@ -14,17 +14,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download calendar
+      - name: Download calendars
         env:
-          CALENDAR_URL: ${{ secrets.CALENDAR_URL }}
+          URL1: ${{ secrets.CALENDAR_URL }}
+          URL2: ${{ secrets.CALENDAR_URL_2 }}
         run: |
-          URL="${CALENDAR_URL/webcal:\/\//https://}"
-          curl -fsSL "$URL" -o calendar.ics
-          grep -q "BEGIN:VCALENDAR" calendar.ics
+          fetch() {
+            url="${1/webcal:\/\//https://}"
+            curl -fsSL "$url" -o "$2"
+            grep -q "BEGIN:VCALENDAR" "$2"
+          }
+          fetch "$URL1" calendar.ics
+          if [ -n "$URL2" ]; then fetch "$URL2" calendar2.ics; fi
 
       - name: Commit if changed
         run: |
           git config user.name "calendar-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add calendar.ics
+          git add calendar*.ics
           git diff --cached --quiet || (git commit -m "Update calendar" && git push)
