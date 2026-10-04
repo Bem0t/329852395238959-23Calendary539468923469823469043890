@@ -29,6 +29,11 @@ button{font:inherit;color:var(--txt);cursor:pointer;border:1px solid var(--line)
 background:rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.25);transition:background .2s}
 button:hover{background:rgba(255,255,255,.16)}
 :focus-visible{outline:2px solid #9db4ff;outline-offset:2px}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.legend:empty{display:none}
+.legend button{height:32px;font-size:13px;display:inline-flex;align-items:center;gap:8px}
+.legend i{width:9px;height:9px;border-radius:50%;background:hsl(var(--h) 85% 65%)}
+.legend button[aria-pressed=false]{opacity:.45}
 .wd,.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:clamp(4px,.5vw,8px)}
 .grid{flex:1;min-height:0;grid-auto-rows:minmax(0,1fr)}
 .wd span{text-align:center;color:var(--dim);font-size:13px;padding-bottom:6px}
@@ -73,6 +78,7 @@ background:hsl(var(--h) 80% 60%/.25);border-left:3px solid hsl(var(--h) 85% 65%)
       <button id="today">Сегодня</button>
       <button id="next" aria-label="Следующий месяц">›</button>
     </div>
+    <div class="legend" id="legend"></div>
     <div class="wd" id="wd"></div>
     <div class="grid" id="grid"></div>
   </section>
@@ -139,7 +145,7 @@ function parseICS(t){
 }
 function expand(base,from,to){
   const out=[],ov=new Set(base.filter(e=>e.rid).map(e=>e.uid+'|'+e.rid));
-  const push=(e,s)=>{if(s<=to&&s+e.dur>=from)out.push({title:e.title,loc:e.loc,s,e:s+e.dur,allDay:e.allDay})};
+  const push=(e,s)=>{if(s<=to&&s+e.dur>=from)out.push({title:e.title,loc:e.loc,s,e:s+e.dur,allDay:e.allDay,cal:e.cal})};
   for(const e of base){
     if(!e.rr){push(e,e.s);continue}
     const r=Object.fromEntries(e.rr.split(';').map(x=>x.split('=')));
@@ -178,7 +184,12 @@ function expand(base,from,to){
 }
 
 /* ---------- UI ---------- */
-let base=[],view=new Date(),sel=new Date();
+/* Список календарей: file — имя файла в репозитории, name — подпись, h — цвет (0–360) */
+const CAL=[
+  {file:'calendar.ics', name:'Основной', h:215},
+  {file:'calendar2.ics',name:'Второй',   h:330}
+];
+let base=[],view=new Date(),sel=new Date(),on=CAL.map(()=>true),loaded=[];
 view.setDate(1);
 const dayFmt=new Intl.DateTimeFormat('ru',{weekday:'long'});
 $('wd').innerHTML=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d=>`<span>${d}</span>`).join('');
@@ -189,7 +200,7 @@ function render(){
   const first=new Date(y,m,1),shift=(first.getDay()+6)%7;
   const start=new Date(y,m,1-shift),weeks=Math.ceil((shift+new Date(y,m+1,0).getDate())/7);
   const end=new Date(start.getFullYear(),start.getMonth(),start.getDate()+weeks*7);
-  const evs=expand(base,start.getTime(),end.getTime()).sort((a,b)=>a.s-b.s);
+  const evs=expand(base.filter(e=>on[e.cal]),start.getTime(),end.getTime()).sort((a,b)=>a.s-b.s);
   const map={};
   for(const e of evs){
     const last=e.e>e.s?e.e-1:e.s;
@@ -202,9 +213,9 @@ function render(){
     const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),k=dk(d),es=map[k]||[];
     h+=`<button class="day${d.getMonth()!==m?' out':''}${k===todayK?' today':''}${k===selK?' sel':''}" data-k="${k}" aria-label="${d.toLocaleDateString('ru',{day:'numeric',month:'long'})}, событий: ${es.length}">
       <span class="n">${d.getDate()}</span>
-      ${es.slice(0,3).map(e=>`<span class="chip" style="--h:${hue(e.title)}">${esc(e.title)}</span>`).join('')}
+      ${es.slice(0,3).map(e=>`<span class="chip" style="--h:${CAL[e.cal].h}">${esc(e.title)}</span>`).join('')}
       ${es.length>3?`<span class="more">ещё ${es.length-3}</span>`:''}
-      <span class="dots">${es.slice(0,4).map(e=>`<i style="--h:${hue(e.title)}"></i>`).join('')}</span></button>`;
+      <span class="dots">${es.slice(0,4).map(e=>`<i style="--h:${CAL[e.cal].h}"></i>`).join('')}</span></button>`;
   }
   $('grid').innerHTML=h;
   $('grid').querySelectorAll('.day').forEach(b=>b.onclick=()=>{const [yy,mm,dd]=b.dataset.k.split('-').map(Number);sel=new Date(yy,mm-1,dd);
@@ -217,16 +228,25 @@ function panel(es){
   const selStart=new Date(sel.getFullYear(),sel.getMonth(),sel.getDate()).getTime();
   $('list').innerHTML=es.length?es.map(e=>{
     const time=e.allDay?'Весь день':(e.e>e.s?`${tm(e.s)} – ${tm(e.e)}`:tm(e.s));
-    return`<div class="ev" style="--h:${hue(e.title)}"><i class="bar"></i><div><b>${esc(e.title)}</b><span>${time}</span>${e.loc?`<span>${esc(e.loc)}</span>`:''}</div></div>`;
+    return`<div class="ev" style="--h:${CAL[e.cal].h}"><i class="bar"></i><div><b>${esc(e.title)}</b><span>${time}</span>${e.loc?`<span>${esc(e.loc)}</span>`:''}${loaded.length>1?`<span>${esc(CAL[e.cal].name)}</span>`:''}</div></div>`;
   }).join(''):'<p class="empty">В этот день ничего не запланировано.</p>';
 }
 $('prev').onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()-1,1);render()};
 $('next').onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()+1,1);render()};
 $('today').onclick=()=>{sel=new Date();view=new Date(sel.getFullYear(),sel.getMonth(),1);render()};
 
-fetch('calendar.ics?'+Date.now()).then(r=>{if(!r.ok)throw 0;return r.text()}).then(t=>{
-  base=parseICS(t);$('app').hidden=false;render();
-}).catch(()=>{$('err').hidden=false});
+function legend(){
+  $('legend').innerHTML=loaded.length>1?loaded.map(i=>`<button aria-pressed="${on[i]}" data-i="${i}" style="--h:${CAL[i].h}"><i></i>${esc(CAL[i].name)}</button>`).join(''):'';
+  $('legend').querySelectorAll('button').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;on[i]=!on[i];legend();render()});
+}
+Promise.all(CAL.map(c=>fetch(c.file+'?'+Date.now()).then(r=>r.ok?r.text():null).catch(()=>null))).then(texts=>{
+  texts.forEach((t,i)=>{if(!t||!t.includes('BEGIN:VCALENDAR'))return;
+    loaded.push(i);
+    parseICS(t).forEach(e=>{e.cal=i;e.uid=i+':'+e.uid;base.push(e)});
+  });
+  if(!loaded.length){$('err').hidden=false;return}
+  $('app').hidden=false;legend();render();
+});
 </script>
 </body>
 </html>
